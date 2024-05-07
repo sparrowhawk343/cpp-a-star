@@ -178,9 +178,16 @@ bool FindPath(std::pair<int, int> Start,
               std::vector<int>& OutPath)
 {
     // TODO:
-    // bug: when a new shorter path to cell is found, it is not added to PQ, so it's only explored at the score of its more expensive path
     // performance of open set check - guard against fully explored cells to avoid infinite loop - tag popped cells as "do not need exploring"
-    // improvement for grid: read up on 2d arrays stored as 1d arrays - std::mdspan from C++23.
+    // improvement for grid to handle larger maps: read up on 2d arrays stored as 1d arrays - std::mdspan from C++23.
+
+    if (Map[Start.second * MapDimensions.first + Start.first] == 0 ||
+           Map[Target.second * MapDimensions.first + Target.first] == 0)
+    {
+        // no path found if start or target is not traversable
+        std::printf("Either Start or Target was not traversable.");
+        return false;
+    }
     
     const std::vector<std::vector<CellDefinition>> Grid = InitializeGrid(Map, MapDimensions);
     std::priority_queue<Cell, std::vector<Cell>, CellComparator> Open;
@@ -215,16 +222,25 @@ bool FindPath(std::pair<int, int> Start,
             const int NewMovementCost = PathSoFar.at(Current.Coordinates).GCost + GetManhattanDistance(Current.Coordinates, NeighborCoordinate);
             auto Iterator = PathSoFar.find(NeighborCoordinate);
 
-            if (Iterator == PathSoFar.end() || NewMovementCost < Iterator->second.GCost)
+            if (Iterator == PathSoFar.end())
             {
-                // only emplace if the PathSoFar map does not yet contain the neighbor cell
                 Iterator = PathSoFar.emplace_hint(Iterator, NeighborCoordinate, Cell{NeighborCoordinate, Current.Coordinates, NewMovementCost, GetManhattanDistance(NeighborCoordinate, Destination)});
-                // here is where it comes in handy to have this unordered_set that mirrors the PQ - we can easily look up elements in it
-                if (std::none_of(OpenSet.begin(), OpenSet.end(), [NeighborCoordinate](const Cell& A) { return A.Coordinates == NeighborCoordinate; }))
-                {
-                    Open.emplace(Iterator->second);
-                    OpenSet.emplace(Iterator->second);
-                }
+            }
+
+            if (NewMovementCost < Iterator->second.GCost)
+            {
+                // this is a better path, update the cost
+                Iterator->second.GCost = NewMovementCost;
+                Iterator->second.HCost = GetManhattanDistance(NeighborCoordinate, Destination);
+                Open.emplace(Iterator->second);
+                OpenSet.emplace(Iterator->second);
+            }
+            
+            if (!OpenSet.contains(Iterator->second))
+            {
+                // if the cell is not already in the OpenSet, add it
+                Open.emplace(Iterator->second);
+                OpenSet.emplace(Iterator->second);
             }
         }
     }
@@ -256,34 +272,48 @@ int main(int argc, char* argv[])
     //     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
     // };
 
-     // const std::vector<int> Map = {
-     //     1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-     //     1, 1, 1, 0, 1, 1, 1, 1, 0, 1,
-     //     1, 0, 1, 0, 1, 1, 1, 0, 0, 0,
-     //     1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-     //     1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-     //     1, 1, 1, 1, 1, 1, 1, 1, 0, 1,
-     //     1, 0, 0, 0, 1, 1, 0, 1, 0, 0,
-     //     1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-     //     1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-     //     1, 1, 1, 0, 1, 1, 1, 1, 1, 1,
-     // };
-    const std::vector<int> Map = {1, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1};
+    const std::vector<int> Map = {
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 0, 1, 1, 1, 0, 0, 1,
+        1, 0, 1, 0, 1, 1, 1, 1, 0, 0,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 1, 0, 1,
+        1, 0, 0, 0, 1, 1, 0, 1, 0, 0,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 0, 1, 1, 1, 1, 1, 1,
+    };
+    // const std::vector<int> Map = {1, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1};
     // std::vector<int> Map = {0, 0, 1, 0, 1, 1, 1, 0, 1};
     std::vector<int> OutPath;
 
     std::printf("This is a test print\n");
     // const bool WasPathFound = FindPath({19, 5}, {80, 6}, Map, {100, 100}, OutPath);
-     // const bool WasPathFound = FindPath({7, 2}, {9, 0}, Map, {10, 10}, OutPath);
-    const bool WasPathFound = FindPath({0, 0}, {1, 2}, Map, {4, 3}, OutPath);
+    const bool WasPathFound = FindPath({7, 2}, {9, 0}, Map, {10, 10}, OutPath);
+    // const bool WasPathFound = FindPath({0, 0}, {1, 2}, Map, {4, 3}, OutPath);
     // const bool WasPathFound = FindPath({2, 0}, {0, 2}, Map, {3, 3}, OutPath);
 
-    for (const int i : OutPath)
+    if (WasPathFound)
     {
-        std::printf("i = %d \n", i);
-    }
+        for (const int i : OutPath)
+        {
+            std::printf("i = %d \n", i);
+        }
 
-    std::printf("WasPathFound = %d \n", WasPathFound);
+        // for (const int linearIndex : OutPath)
+        // {
+        //     int x = linearIndex % 10;  // Calculate column index
+        //     int y = linearIndex / 10;  // Calculate row index
+        //     std::printf("x = %d, y = %d\n", x, y);
+        // }
+        
+        std::printf("WasPathFound = %d \n", WasPathFound);
+    }
+    else
+    {
+        std::printf("No path was found.");
+    }
 
     return 0;
 }
