@@ -9,6 +9,7 @@ struct Coordinate
 {
     int GridX;
     int GridY;
+    bool Explored;
 
     bool operator!=(const Coordinate& Other) const
     {
@@ -178,7 +179,6 @@ bool FindPath(std::pair<int, int> Start,
               std::vector<int>& OutPath)
 {
     // TODO:
-    // performance of open set check - guard against fully explored cells to avoid infinite loop - tag popped cells as "do not need exploring"
     // improvement for grid to handle larger maps: read up on 2d arrays stored as 1d arrays - std::mdspan from C++23.
 
     if (Map[Start.second * MapDimensions.first + Start.first] == 0 ||
@@ -205,9 +205,10 @@ bool FindPath(std::pair<int, int> Start,
 
     while (!Open.empty())
     {
-        const Cell Current = Open.top();
+        Cell Current = Open.top();
         Open.pop();
         OpenSet.erase(Current);
+        Current.Coordinates.Explored = true;
 
         if (Current.Coordinates == Destination)
         {
@@ -219,6 +220,11 @@ bool FindPath(std::pair<int, int> Start,
         // go through all accessible neighbors, compute their costs
         for (const Coordinate NeighborCoordinate : Neighbors)
         {
+            if (NeighborCoordinate.Explored)
+            {
+                continue;
+            }
+            
             const int NewMovementCost = PathSoFar.at(Current.Coordinates).GCost + GetManhattanDistance(Current.Coordinates, NeighborCoordinate);
             auto Iterator = PathSoFar.find(NeighborCoordinate);
 
